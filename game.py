@@ -1120,6 +1120,7 @@ class Game:
 
 
 # Kick off the game
-Game()
 from browser import window
 window.camcookie_ready = True
+
+Game()
