@@ -1,99 +1,73 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Camcookie Dirt Dash — Web Build</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <title>Camcookie Dirt Dash</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0e">
   <style>
     html, body {
       margin: 0;
+      padding: 0;
       height: 100%;
-      background: #0b1020;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      color: #e5e7eb;
+      background: #0b0b0e;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
-    #wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      padding: 16px;
-      box-sizing: border-box;
+    #root {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
     }
-    #game-root {
-      width: 1100px;
-      max-width: 100vw;
-    }
-    .panel {
-      background: #111827;
-      padding: 16px;
-      border-radius: 12px;
-      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
-    }
-    .title {
-      font-size: 22px;
-      font-weight: 800;
-      margin: 0 0 6px;
-      color: #f3f4f6;
-    }
-    .subtitle {
-      margin: 0 0 12px;
-      color: #cbd5e1;
-    }
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    .small {
-      font-size: 12px;
-      opacity: 0.95;
-    }
+    /* The SVG canvas (game.py will also create it if missing) */
     #game {
-      display: block;
       width: 100%;
-      height: auto;
-      background: #1c2537;
-      border-radius: 10px;
+      height: 100%;
+      display: block;
+    }
+    /* Home UI container is created and styled by game.py; preserve stacking. */
+    #home-ui {
+      position: absolute;
+      inset: 0;
+      pointer-events: auto;
+      z-index: 5;
+    }
+    noscript {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #e6f2ff;
+      background: #0b0b0e;
+      font: 20px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
   </style>
-
-  <!-- Brython runtime -->
-  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/brython@3.12.1/brython_stdlib.js"></script>
 </head>
-<body onload="brython()">
-  <div id="wrap">
-    <div id="game-root" class="panel">
-      <div class="title">Camcookie Dirt Dash</div>
-      <div class="subtitle">2D dirt biking, SVG-rendered, motion-safe — pure Python in the browser</div>
-
-      <div class="row small">
-        <span>Status: <span id="status">Loading…</span></span>
-        <span style="margin-left:16px;">Engine: <span id="engine">OFF</span></span>
-        <span style="margin-left:16px;">Reduced Motion: <span id="rm">ON</span></span>
-      </div>
-
-      <!-- SVG surface your Python will use -->
-      <svg id="game" width="1100" height="620" viewBox="0 0 1100 620"
-           xmlns="http://www.w3.org/2000/svg"></svg>
-
-      <div class="row small" style="margin-top:8px;">
-        <div>Controls: → throttle, ← brake, Space jump, S engine, P pause, R restart, Enter start</div>
-      </div>
-    </div>
+<body>
+  <div id="root">
+    <!-- Optional: game.py will create this if not present -->
+    <svg id="game" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"></svg>
   </div>
 
-  <!-- Your Python goes in game.py -->
-  <script type="text/python" src="https://camcookie876.github.io/dirt-dash/game.py"></script>
+  <noscript>Camcookie Dirt Dash requires JavaScript enabled.</noscript>
 
-  <!-- Fallback message if game.py fails -->
+  <!-- Brython runtime -->
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython_stdlib.min.js"></script>
+
+  <!-- Start Brython after DOM is ready -->
   <script>
-    window.addEventListener('error', () => {
-      const s = document.getElementById('status');
-      if (s && s.textContent === 'Loading…') s.textContent = 'ERROR! Please try reloding and check internet conection! Problem keep hapining? Tell us about it at https://github.com/camcookie876/dirt-dash/issues';
+    window.addEventListener('load', function () {
+      brython({ debug: 0 });
     });
   </script>
+
+  <!-- Load your game code (absolute path as requested) -->
+  <script type="text/python" src="https://camcookie876.github.io/dirt-dash/game.py"></script>
+  <!-- If you place this HTML in /dirt-dash/, the relative form also works:
+       <script type="text/python" src="game.py"></script>
+  -->
 </body>
 </html>
