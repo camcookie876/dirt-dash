@@ -1,10 +1,13 @@
+# Camcookie Dirt Dash — Brython build
+# Save as game.py next to your index.html. Open index.html in a browser.
+
 from browser import document, svg, timer, window
-import math, json
+import math
 
 # =========================
 # Config
 # =========================
-W, H = 1100, 620                     # Matches SVG viewBox in index.html
+W, H = 1100, 620
 GROUND_BASE_Y = 470
 GRAVITY = 1500.0
 JUMP_VY = -540.0
@@ -25,8 +28,8 @@ OBST_RAMPS = 8
 # =========================
 # State
 # =========================
-state = "HOME"       # HOME, GRID, PLAY, PAUSE, END
-keys = set()         # keyboard codes currently pressed
+state = "HOME"          # HOME, GRID, PLAY, PAUSE, END
+keys = set()
 world_x = 0.0
 time_elapsed = 0.0
 countdown_end_ms = None
@@ -34,14 +37,14 @@ results = []
 bot_count = BOT_COUNT_DEFAULT
 reduced_motion = True
 
-# Inputs (also set by mobile buttons)
+# Inputs (keyboard + mobile)
+engine_on = False
 inp_throttle = False
 inp_brake = False
-inp_jump_pressed = False   # edge-trigger
-engine_on = False
+inp_jump_edge = False
 
 # =========================
-# DOM / SVG Layers
+# DOM / layers
 # =========================
 root = document["game"]
 root.clear()
@@ -56,12 +59,12 @@ layers = {
     "bike": svg.g(),
     "hud": svg.g(),
     "overlay": svg.g(),
-    "controls": svg.g()   # on-screen mobile buttons
+    "controls": svg.g(),  # on-screen mobile controls
 }
 for g in layers.values():
     root <= g
 
-# Optional top bar spans from HTML (won't fail if missing)
+# Optional status labels in HTML
 status_el = document.getElementById("status")
 engine_el = document.getElementById("engine")
 rm_el = document.getElementById("rm")
@@ -89,10 +92,11 @@ layers["bg"] <= band1
 layers["bg"] <= band2
 layers["far"] <= svg.rect(x=0, y=H-150, width=W*2, height=60, fill="#121a2a")
 
-ground_path = svg.polygon(points="", fill="#2C3A4F", stroke="#192235", stroke_width="2")
-layers["ground"] <= ground_path
+# Ground polygon
+ground_poly = svg.polygon(points="", fill="#2C3A4F", stroke="#192235", stroke_width="2")
+layers["ground"] <= ground_poly
 
-# Start/Finish markers
+# Start/Finish
 finish_group = svg.g(); layers["ground"] <= finish_group
 start_group = svg.g(); layers["ground"] <= start_group
 
@@ -101,33 +105,23 @@ def build_finish():
     fx = TRACK_LENGTH
     pole = svg.rect(x=fx, y=H-320, width=6, height=320, fill="#0ea5e9")
     flag = svg.rect(x=fx+6, y=H-320, width=24, height=24, fill="#f8fafc")
-    finish_group <= pole
-    finish_group <= flag
-    for r in range(0, 3):
-        for c in range(0, 3):
-            if (r+c)%2==0:
-                sq = svg.rect(x=fx+6+c*8, y=H-320+r*8, width=8, height=8, fill="#111827")
-                finish_group <= sq
+    finish_group <= pole; finish_group <= flag
+    for r in range(3):
+        for c in range(3):
+            if (r+c) % 2 == 0:
+                finish_group <= svg.rect(x=fx+6+c*8, y=H-320+r*8, width=8, height=8, fill="#111827")
 
 def build_start():
     start_group.clear()
     sx = 0
-    pole = svg.rect(x=sx, y=H-320, width=6, height=320, fill="#10b981")
-    banner = svg.rect(x=sx+6, y=H-320, width=70, height=22, fill="#22d3ee")
-    start_group <= pole
-    start_group <= banner
+    start_group <= svg.rect(x=sx, y=H-320, width=6, height=320, fill="#10b981")
+    start_group <= svg.rect(x=sx+6, y=H-320, width=70, height=22, fill="#22d3ee")
 
-build_finish()
-build_start()
+build_finish(); build_start()
 
 # =========================
-# Math / Track
+# Utilities / Track
 # =========================
-def ground_y_at(xw: float) -> float:
-    return (GROUND_BASE_Y
-            + 16.0 * math.sin((xw+200)/260.0)
-            + 12.0 * math.sin((xw+900)/180.0))
-
 def clamp(v, lo, hi):
     return lo if v < lo else hi if v > hi else v
 
@@ -136,12 +130,10 @@ def fmt_time(t):
     s = t - 60*m
     return f"{m}:{s:05.2f}"
 
-def seeded_rand(seed):
-    state = {"x": seed & 0x7fffffff}
-    def rnd():
-        state["x"] = (1103515245*state["x"] + 12345) & 0x7fffffff
-        return state["x"] / 0x7fffffff
-    return rnd
+def ground_y_at(xw: float) -> float:
+    return (GROUND_BASE_Y
+            + 16.0 * math.sin((xw+200)/260.0)
+            + 12.0 * math.sin((xw+900)/180.0))
 
 # =========================
 # Obstacles
@@ -150,24 +142,22 @@ obstacles = []
 ob_nodes = []
 
 def spawn_obstacles():
-    global obstacles, ob_nodes
     obstacles.clear()
     ob_nodes.clear()
-    rnd = seeded_rand(1337)
-    # rocks
+    # Rocks
     for n in range(OBST_ROCKS):
-        xw = 240 + (TRACK_LENGTH-480)*(n+1)/(OBST_ROCKS+1) + int(rnd()*53) - 26
-        r = 10 + (n*31)%7
+        xw = 240 + (TRACK_LENGTH-480)*(n+1)/(OBST_ROCKS+1) + ((n*137) % 53) - 26
+        r = 10 + (n*31) % 7
         obstacles.append({"type":"rock", "xw": xw, "r": r})
-    # logs
+    # Logs
     for n in range(OBST_LOGS):
-        xw = 400 + (TRACK_LENGTH-800)*(n+1)/(OBST_LOGS+1) + int(rnd()*73) - 36
-        w = 56 + (n*13)%16
+        xw = 400 + (TRACK_LENGTH-800)*(n+1)/(OBST_LOGS+1) + ((n*97) % 73) - 36
+        w = 56 + (n*13) % 16
         h = 12
         obstacles.append({"type":"log", "xw": xw, "w": w, "h": h})
-    # ramps
+    # Ramps
     for n in range(OBST_RAMPS):
-        xw = 350 + (TRACK_LENGTH-700)*(n+1)/(OBST_RAMPS+1) + int(rnd()*61) - 30
+        xw = 350 + (TRACK_LENGTH-700)*(n+1)/(OBST_RAMPS+1) + ((n*71) % 61) - 30
         w = 84; h = 40
         obstacles.append({"type":"ramp", "xw": xw, "w": w, "h": h})
     obstacles.sort(key=lambda o: o["xw"])
@@ -175,17 +165,11 @@ def spawn_obstacles():
     layers["obstacles"].clear()
     for ob in obstacles:
         if ob["type"] == "rock":
-            g = svg.g()
-            c = svg.circle(cx=0, cy=0, r=ob["r"], fill="#7dd3fc", stroke="#0ea5e9", stroke_width="2")
-            g <= c
+            g = svg.g(); g <= svg.circle(cx=0, cy=0, r=ob["r"], fill="#7dd3fc", stroke="#0ea5e9", stroke_width="2")
         elif ob["type"] == "log":
-            g = svg.g()
-            rect = svg.rect(x=0, y=0, width=ob["w"], height=ob["h"], fill="#a78b6a", stroke="#6b4f33", stroke_width="2")
-            g <= rect
+            g = svg.g(); g <= svg.rect(x=0, y=0, width=ob["w"], height=ob["h"], fill="#a78b6a", stroke="#6b4f33", stroke_width="2")
         else:
-            g = svg.g()
-            tri = svg.polygon(points=f"0,0 {ob['w']},0 0,-{ob['h']}", fill="#9ca3af", stroke="#6b7280", stroke_width="2")
-            g <= tri
+            g = svg.g(); g <= svg.polygon(points=f"0,0 {ob['w']},0 0,-{ob['h']}", fill="#9ca3af", stroke="#6b7280", stroke_width="2")
         layers["obstacles"] <= g
         ob_nodes.append((ob, g))
 
@@ -244,7 +228,7 @@ class Bike:
         sx = (self.xw - scroll_x) + 220
         sy = self.y
         layers["bike"].clear()
-        layers["bike"] <= svg.rect(x=sx-30, y=sy-12, width=62, height=18, rx=4, ry=4, fill="#ffd166", stroke="#2b2d42", stroke_width="2")
+        layers["bike"] <= svg.rect(x=sx-30, y=sy-12, width=62, height=18, rx=4, ry=4, fill=self.color, stroke="#2b2d42", stroke_width="2")
         layers["bike"] <= svg.circle(cx=sx-18, cy=sy+24, r=12, stroke="#f8fafc", fill="none", stroke_width="3")
         layers["bike"] <= svg.circle(cx=sx+20, cy=sy+24, r=12, stroke="#f8fafc", fill="none", stroke_width="3")
         layers["bike"] <= svg.circle(cx=sx, cy=sy-10, r=6, fill="#e11d48")
@@ -269,57 +253,46 @@ class BotAI:
             b.speed = min(b.speed + (ACCEL*0.8)*dt, self.target_speed)
         else:
             b.speed = max(b.speed - (ROLL_DECEL*0.4)*dt, self.target_speed*0.9)
-        # Look-ahead
+        # Look-ahead jump
         look = 140 + self.jump_bias
         for ob in obstacles:
             if ob["xw"] > b.xw and ob["xw"] - b.xw < look:
                 if b.on_ground():
-                    if ob["type"] == "ramp":
-                        b.jump(JUMP_VY * 0.95)
-                    else:
-                        b.jump(JUMP_VY * 0.88)
+                    b.jump(JUMP_VY * (0.95 if ob["type"]=="ramp" else 0.88))
                 break
         b.xw += b.speed * dt
         b.update_physics(dt)
 
-# Player and bots
 player = Bike()
 bots = []
 bot_ai = []
 
+def build_bots():
+    global bots, bot_ai
+    bots = []; bot_ai = []
+    colors = ["#93c5fd", "#86efac", "#fca5a5", "#f0abfc", "#fde68a"]
+    layers["bots"].clear()
+    for i in range(bot_count):
+        b = Bike(color=colors[i % len(colors)], is_bot=True, name=f"Bot {i+1}")
+        bots.append(b)
+        bot_ai.append(BotAI(b, target=220.0 + 12*i, jump_bias=10*i, name=b.name))
+
 # =========================
-# HUD / Overlays
+# UI helpers
 # =========================
-def draw_ground(scroll_x):
-    step = 8
-    pts = []
-    for sx in range(0, W+step, step):
-        xw = scroll_x + sx
-        y = ground_y_at(xw)
-        pts.append((sx, y))
-    pts_ext = pts + [(W, H), (0, H)]
-    ground_path.setAttribute("points", " ".join(f"{x},{y}" for x,y in pts_ext))
+def make_button(x, y, w, h, label, onclick):
+    g = svg.g()
+    rect = svg.rect(x=x, y=y, width=w, height=h, rx=8, ry=8, fill="#ffd166")
+    txt = svg.text(label, x=x+w/2, y=y+h/2+4, fill="#1f2937")
+    txt.setAttribute("style","font-weight:800; text-anchor:middle; font-size:12px")
+    g <= rect; g <= txt
+    g.bind("click", lambda ev: (ev.preventDefault(), onclick(ev)))
+    g.bind("touchstart", lambda ev: (ev.preventDefault(), onclick(ev)))
+    return g
 
-def draw_finish_start(scroll_x):
-    # Translate groups instead of rebuilding
-    finish_group.setAttribute("transform", f"translate({-scroll_x},0)")
-    start_group.setAttribute("transform", f"translate({-scroll_x},0)")
-
-def draw_obstacles_scroll(scroll_x):
-    draw_obstacles(scroll_x)
-
-def draw_hud():
-    layers["hud"].clear()
-    layers["hud"] <= svg.rect(x=12, y=12, width=460, height=92, rx=10, ry=10, fill="rgba(0,0,0,0.35)")
-    layers["hud"] <= svg.text(f"Time {fmt_time(time_elapsed)}", x=24, y=38, fill="#e5e7eb")
-    layers["hud"] <= svg.text(f"Speed {int(player.speed)}", x=24, y=64, fill="#e5e7eb")
-    # Position
-    everyone = [("You", player.xw)] + [(b.name, b.xw) for b in bots]
-    everyone.sort(key=lambda t: -t[1])
-    pos = next((i+1 for i,(n,_) in enumerate(everyone) if n=="You"), 1)
-    layers["hud"] <= svg.text(f"Pos {pos}/{len(everyone)}", x=180, y=64, fill="#e5e7eb")
-    layers["hud"] <= svg.text("S engine | → throttle | ← brake", x=320, y=64, fill="#cbd5e1")
-
+# =========================
+# Overlays
+# =========================
 def overlay_clear():
     layers["overlay"].clear()
 
@@ -328,15 +301,13 @@ def draw_home():
     p = svg.rect(x=320, y=140, width=480, height=300, rx=12, ry=12, fill="rgba(0,0,0,0.55)", stroke="#0ea5e9", stroke_width="2")
     t = svg.text("Race Setup", x=350, y=180, fill="#f8fafc"); t.setAttribute("style","font-size:24px;font-weight:800")
     info = svg.text("Gentle jumps • Bots • Motion-safe", x=350, y=206, fill="#cbd5e1")
-    # Bots +/- and RM toggle
     bc = svg.text(f"Bots: {bot_count}", x=350, y=232, fill="#e5e7eb")
     btn_dec = make_button(430, 216, 28, 28, "–", lambda ev: change_bots(-1))
     btn_inc = make_button(464, 216, 28, 28, "+", lambda ev: change_bots(1))
     btn_rm = make_button(350, 246, 220, 34, f"Reduced Motion: {'ON' if reduced_motion else 'OFF'}", toggle_rm)
-    btn_start = make_button(350, 292, 160, 38, "Start Race", lambda ev: start_race())
+    btn_start = make_button(350, 292, 160, 38, "Start Race (Enter)", lambda ev: start_race())
     for n in (p, t, info, bc, btn_dec, btn_inc, btn_rm, btn_start):
         layers["overlay"] <= n
-    # Keep reference to bc to update live
     draw_home.bc_node = bc
 
 def draw_grid():
@@ -372,222 +343,99 @@ def draw_end():
     layers["overlay"] <= again; layers["overlay"] <= home
 
 # =========================
-# UI Helpers
+# HUD
 # =========================
-def make_button(x, y, w, h, label, onclick):
-    g = svg.g()
-    rect = svg.rect(x=x, y=y, width=w, height=h, rx=8, ry=8, fill="#ffd166")
-    txt = svg.text(label, x=x+w/2, y=y+h/2+4, fill="#1f2937")
-    txt.setAttribute("style","font-weight:800; text-anchor:middle; font-size:12px")
-    g <= rect; g <= txt
-    g.bind("click", lambda ev: (ev.preventDefault(), onclick(ev)))
-    # Touch-friendly
-    g.bind("touchstart", lambda ev: (ev.preventDefault(), onclick(ev)))
-    return g
-
-def change_bots(delta):
-    global bot_count
-    bot_count = max(0, min(5, bot_count + delta))
-    if hasattr(draw_home, "bc_node"):
-        draw_home.bc_node.text = f"Bots: {bot_count}"
-
-def toggle_rm(ev=None):
-    global reduced_motion
-    reduced_motion = not reduced_motion
-    draw_home() if state == "HOME" else None
-    set_rm_txt(reduced_motion)
-
-def pause_toggle():
-    global state
-    if state == "PLAY":
-        state = "PAUSE"
-        set_status_txt(state)
-        draw_pause()
-    elif state == "PAUSE":
-        state = "PLAY"
-        set_status_txt(state)
-        overlay_clear()
+def draw_hud():
+    layers["hud"].clear()
+    layers["hud"] <= svg.rect(x=12, y=12, width=460, height=92, rx=10, ry=10, fill="rgba(0,0,0,0.35)")
+    layers["hud"] <= svg.text(f"Time {fmt_time(time_elapsed)}", x=24, y=38, fill="#e5e7eb")
+    layers["hud"] <= svg.text(f"Speed {int(player.speed)}", x=24, y=64, fill="#e5e7eb")
+    everyone = [("You", player.xw)] + [(b.name, b.xw) for b in bots]
+    everyone.sort(key=lambda t: -t[1])
+    pos = next((i+1 for i,(n,_) in enumerate(everyone) if n=="You"), 1)
+    layers["hud"] <= svg.text(f"Pos {pos}/{len(everyone)}", x=180, y=64, fill="#e5e7eb")
+    layers["hud"] <= svg.text("S engine | → throttle | ← brake | Space jump", x=320, y=64, fill="#cbd5e1")
 
 # =========================
-# Mobile Controls
+# Mobile controls
 # =========================
 is_touch = bool(getattr(window.navigator, "maxTouchPoints", 0))
 
-# Big on-screen buttons for mobile; desktop can ignore them
-def build_controls():
-    layers["controls"].clear()
-    margin = 12
-    bh = 70
-    bw = 90
-    y = H - margin - bh
-    # Left/Right on left side
-    left_btn  = control_button(margin, y, bw, bh, "◀", press_left, release_left)
-    right_btn = control_button(margin + bw + 10, y, bw, bh, "▶", press_right, release_right)
-    # Jump on right side
-    jump_btn  = control_button(W - margin - bw, y, bw, bh, "⤴", press_jump, release_jump)
-    # Engine toggle and Pause smaller above
-    small_w, small_h = 90, 40
-    eng_btn = control_button(W - margin - small_w, y - small_h - 8, small_w, small_h, "Engine", toggle_engine, None, momentary=False)
-    pau_btn = control_button(W - margin - small_w - 100, y - small_h - 8, small_w, small_h, "Pause", lambda ev: pause_toggle(), None, momentary=False)
-    for b in (left_btn, right_btn, jump_btn, eng_btn, pau_btn):
-        layers["controls"] <= b
-    # Reduce opacity on desktop
-    if not is_touch:
-        layers["controls"].setAttribute("opacity", "0.25")
-
-def control_button(x, y, w, h, label, on_down, on_up, momentary=True):
+def control_button(x, y, w, h, label, on_down=None, on_up=None, momentary=True):
     g = svg.g()
     rect = svg.rect(x=x, y=y, width=w, height=h, rx=12, ry=12, fill="#11182799", stroke="#0ea5e9", stroke_width="2")
     txt = svg.text(label, x=x+w/2, y=y+h/2+6, fill="#e5e7eb")
     txt.setAttribute("style","font-size:20px; font-weight:800; text-anchor:middle")
     g <= rect; g <= txt
-    # Mouse
-    g.bind("mousedown", lambda ev: (ev.preventDefault(), on_down(ev)))
-    g.bind("mouseup",   lambda ev: (ev.preventDefault(), (on_up(ev) if on_up else None)))
-    g.bind("mouseleave",lambda ev: (ev.preventDefault(), (on_up(ev) if on_up else None)))
-    g.bind("click", lambda ev: ev.preventDefault())  # prevent focus scroll
-    # Touch
-    g.bind("touchstart", lambda ev: (ev.preventDefault(), on_down(ev)))
-    g.bind("touchend",   lambda ev: (ev.preventDefault(), (on_up(ev) if on_up else None)))
-    g.bind("touchcancel",lambda ev: (ev.preventDefault(), (on_up(ev) if on_up else None)))
+    # mouse
+    if on_down: g.bind("mousedown", lambda ev: (ev.preventDefault(), on_down(ev)))
+    if on_up:
+        g.bind("mouseup", lambda ev: (ev.preventDefault(), on_up(ev)))
+        g.bind("mouseleave", lambda ev: (ev.preventDefault(), on_up(ev)))
+    # touch
+    if on_down: g.bind("touchstart", lambda ev: (ev.preventDefault(), on_down(ev)))
+    if on_up:   g.bind("touchend",   lambda ev: (ev.preventDefault(), on_up(ev)))
+    if on_up:   g.bind("touchcancel",lambda ev: (ev.preventDefault(), on_up(ev)))
     return g
 
-def press_right(ev=None):
+def build_controls():
+    layers["controls"].clear()
+    margin = 12
+    bh = 70; bw = 90
+    y = H - margin - bh
+    left_btn  = control_button(margin, y, bw, bh, "◀", lambda ev: set_brake(True), lambda ev: set_brake(False))
+    right_btn = control_button(margin + bw + 10, y, bw, bh, "▶", lambda ev: set_throttle(True), lambda ev: set_throttle(False))
+    jump_btn  = control_button(W - margin - bw, y, bw, bh, "⤴", lambda ev: press_jump(), None)
+    small_w, small_h = 90, 40
+    eng_btn = control_button(W - margin - small_w, y - small_h - 8, small_w, small_h, "Engine",
+                             lambda ev: toggle_engine(), None, momentary=False)
+    pau_btn = control_button(W - margin - small_w - 100, y - small_h - 8, small_w, small_h, "Pause",
+                             lambda ev: pause_toggle(), None, momentary=False)
+    for b in (left_btn, right_btn, jump_btn, eng_btn, pau_btn): layers["controls"] <= b
+    if not is_touch:
+        layers["controls"].setAttribute("opacity", "0.25")
+
+def set_throttle(on):
     global inp_throttle
-    inp_throttle = True
+    inp_throttle = on
 
-def release_right(ev=None):
-    global inp_throttle
-    inp_throttle = False
-
-def press_left(ev=None):
+def set_brake(on):
     global inp_brake
-    inp_brake = True
+    inp_brake = on
 
-def release_left(ev=None):
-    global inp_brake
-    inp_brake = False
+def press_jump():
+    global inp_jump_edge
+    inp_jump_edge = True
 
-def press_jump(ev=None):
-    global inp_jump_pressed
-    inp_jump_pressed = True
-
-def release_jump(ev=None):
-    # nothing; jump is edge-triggered
-    pass
-
-def toggle_engine(ev=None):
-    global engine_on
-    engine_on = not engine_on
-    set_engine_txt(engine_on)
-
-# Prevent page scroll on space/arrow on mobile/desktop
+# Prevent scroll on touch/keys for arrows/space
 def prevent_defaults():
-    def stop(ev):
-        ev.preventDefault()
+    def stop(ev): ev.preventDefault()
     for et in ("touchstart","touchmove","touchend"):
         document.bind(et, stop)
 prevent_defaults()
 
 # =========================
-# Game Flow
-# =========================
-def to_home():
-    global state
-    state = "HOME"
-    set_status_txt(state)
-    draw_home()
-
-def start_race(ev=None):
-    global state, countdown_end_ms, time_elapsed, world_x, engine_on, results
-    # reset
-    state = "GRID"
-    set_status_txt(state)
-    results = []
-    time_elapsed = 0.0
-    world_x = 0.0
-    engine_on = False
-    player.xw = 0.0
-    player.y = ground_y_at(0) - 40
-    player.vy = 0.0
-    player.speed = 0.0
-    player.finished = False
-    player.finish_time = None
-    # obstacles / bots
-    spawn_obstacles()
-    build_bots()
-    countdown_end_ms = window.performance.now() + COUNTDOWN_MS
-
-def build_bots():
-    global bots, bot_ai
-    bots = []
-    bot_ai = []
-    colors = ["#93c5fd", "#86efac", "#fca5a5", "#f0abfc", "#fde68a"]
-    layers["bots"].clear()
-    for i in range(bot_count):
-        b = Bike(color=colors[i % len(colors)], is_bot=True, name=f"Bot {i+1}")
-        bots.append(b)
-        bot_ai.append(BotAI(b, target=220.0 + 12*i, jump_bias=10*i, name=b.name))
-
-def end_race():
-    global state, results
-    everyone = []
-    for b in [player] + bots:
-        t = b.finish_time if b.finish_time is not None else time_elapsed
-        everyone.append((b.name, t))
-    everyone.sort(key=lambda t: t[1])
-    results = everyone
-    state = "END"
-    set_status_txt(state)
-    draw_end()
-
-# =========================
-# Collision / Interactions
-# =========================
-def handle_obstacles(bike: Bike):
-    for ob in obstacles:
-        dx = ob["xw"] - bike.xw
-        if -30 <= dx <= 30:
-            gy = ground_y_at(ob["xw"])
-            if ob["type"] == "rock":
-                top = gy - ob["r"]
-                if bike.y >= top - 10 and bike.bump_cooldown <= 0:
-                    bike.speed = max(bike.speed * 0.6, bike.speed - 80)
-                    bike.vy = -120
-                    bike.bump_cooldown = 0.6
-            elif ob["type"] == "log":
-                top = gy - ob["h"]
-                if bike.y >= top - 10 and bike.bump_cooldown <= 0:
-                    bike.speed = max(bike.speed * 0.7, bike.speed - 90)
-                    bike.vy = -150
-                    bike.bump_cooldown = 0.6
-            else:
-                # ramp: give lift at mouth if on ground
-                mouth_left = ob["xw"] - ob["w"]/2
-                mouth_right = ob["xw"] + ob["w"]/2
-                if mouth_left - 10 <= bike.xw <= mouth_right + 10 and bike.on_ground():
-                    bike.vy = JUMP_VY * 0.9
-
-# =========================
 # Input (Keyboard)
 # =========================
 def on_keydown(ev):
-    global inp_jump_pressed, engine_on
+    global inp_jump_edge, engine_on
     code = ev.code
     keys.add(code)
     if code in ("ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Space"):
         ev.preventDefault()
     if code == "Space" and state == "PLAY":
-        inp_jump_pressed = True
+        inp_jump_edge = True
     elif code == "KeyS":
-        engine_on = not engine_on
-        set_engine_txt(engine_on)
+        engine_on = not engine_on; set_engine_txt(engine_on)
     elif code == "KeyP":
         pause_toggle()
     elif code == "Enter":
         if state == "HOME":
             start_race()
         elif state == "END":
+            start_race()
+    elif code == "KeyR":
+        if state in ("PLAY","PAUSE","END"):
             start_race()
 
 def on_keyup(ev):
@@ -599,18 +447,114 @@ document.bind("keydown", on_keydown)
 document.bind("keyup", on_keyup)
 
 # =========================
-# Main Loop
+# Flow
+# =========================
+def to_home():
+    global state
+    state = "HOME"
+    set_status_txt(state)
+    draw_home()
+
+def toggle_rm(ev=None):
+    global reduced_motion
+    reduced_motion = not reduced_motion
+    set_rm_txt(reduced_motion)
+    if state == "HOME":
+        draw_home()
+
+def change_bots(delta):
+    global bot_count
+    bot_count = max(0, min(5, bot_count + delta))
+    if hasattr(draw_home, "bc_node"):
+        draw_home.bc_node.text = f"Bots: {bot_count}"
+
+def start_race(ev=None):
+    global state, countdown_end_ms, time_elapsed, world_x, engine_on, results
+    state = "GRID"
+    set_status_txt(state)
+    results = []
+    time_elapsed = 0.0
+    world_x = 0.0
+    engine_on = False; set_engine_txt(engine_on)
+    # reset player
+    player.xw = 0.0; player.y = ground_y_at(0) - 40
+    player.vy = 0.0; player.speed = 0.0
+    player.finished = False; player.finish_time = None
+    # level
+    spawn_obstacles()
+    build_bots()
+    countdown_end_ms = window.performance.now() + COUNTDOWN_MS
+
+def pause_toggle():
+    global state
+    if state == "PLAY":
+        state = "PAUSE"; set_status_txt(state); draw_pause()
+    elif state == "PAUSE":
+        state = "PLAY"; set_status_txt(state); overlay_clear()
+
+def end_race():
+    global state, results
+    everyone = []
+    for b in [player] + bots:
+        t = b.finish_time if b.finish_time is not None else time_elapsed
+        everyone.append((b.name, t))
+    everyone.sort(key=lambda t: t[1])
+    results = everyone
+    state = "END"; set_status_txt(state)
+    draw_end()
+
+# =========================
+# Physics / Collisions
+# =========================
+def handle_obstacles(bike: Bike):
+    for ob in obstacles:
+        dx = ob["xw"] - bike.xw
+        if -30 <= dx <= 30:
+            gy = ground_y_at(ob["xw"])
+            if ob["type"] == "rock":
+                top = gy - ob["r"]
+                if bike.y >= top - 10 and bike.bump_cooldown <= 0:
+                    bike.speed = max(bike.speed * 0.6, bike.speed - 80)
+                    bike.vy = -120; bike.bump_cooldown = 0.6
+            elif ob["type"] == "log":
+                top = gy - ob["h"]
+                if bike.y >= top - 10 and bike.bump_cooldown <= 0:
+                    bike.speed = max(bike.speed * 0.7, bike.speed - 90)
+                    bike.vy = -150; bike.bump_cooldown = 0.6
+            else:
+                # Ramp: gentle lift at mouth
+                mouth_left = ob["xw"] - ob["w"]/2
+                mouth_right = ob["xw"] + ob["w"]/2
+                if mouth_left - 10 <= bike.xw <= mouth_right + 10 and bike.on_ground():
+                    bike.vy = JUMP_VY * 0.9
+
+# =========================
+# Loop
 # =========================
 last_ms = window.performance.now()
 
+def draw_ground(scroll_x):
+    step = 8
+    pts = []
+    for sx in range(0, W+step, step):
+        xw = scroll_x + sx
+        y = ground_y_at(xw)
+        pts.append((sx, y))
+    pts_ext = pts + [(W, H), (0, H)]
+    ground_poly.setAttribute("points", " ".join(f"{x},{y}" for x,y in pts_ext))
+
+def draw_finish_start(scroll_x):
+    finish_group.setAttribute("transform", f"translate({-scroll_x},0)")
+    start_group.setAttribute("transform", f"translate({-scroll_x},0)")
+
 def loop():
-    global last_ms, world_x, time_elapsed, state, inp_jump_pressed
+    global last_ms, world_x, time_elapsed, state, inp_jump_edge, engine_on
     now = window.performance.now()
     dt = (now - last_ms) / 1000.0
     last_ms = now
-    dt = min(dt, 1/30)  # clamp big frame stalls
+    dt = min(dt, 1/30)  # clamp stalls
 
-    # Parallax
+    # Parallax bands
     par = 0.15 if reduced_motion else 0.3
     band1.setAttribute("transform", f"translate({-(world_x*par)%W},0)")
     band2.setAttribute("transform", f"translate({-(world_x*(par*1.4))%W},0)")
@@ -618,17 +562,14 @@ def loop():
     if state == "GRID":
         draw_grid()
         if now >= countdown_end_ms:
-            state = "PLAY"
-            set_status_txt(state)
-            # Auto-engine on when race starts
-            toggle_engine()
+            state = "PLAY"; set_status_txt(state)
+            engine_on = True; set_engine_txt(engine_on)
             overlay_clear()
 
     if state == "PLAY":
         # Inputs
         throttle = inp_throttle or ("ArrowRight" in keys)
         brake = inp_brake or ("ArrowLeft" in keys)
-
         # Engine behavior
         if not engine_on:
             player.speed = max(0.0, player.speed - ROLL_DECEL*dt)
@@ -639,23 +580,17 @@ def loop():
                 player.speed = clamp(player.speed - BRAKE*dt, 0, MAX_SPEED)
             else:
                 player.speed = clamp(player.speed - ROLL_DECEL*dt, 0, MAX_SPEED)
-
-        # Jump (edge-triggered)
-        if inp_jump_pressed:
-            player.jump()
-            inp_jump_pressed = False
-
+        # Jump edge
+        if inp_jump_edge:
+            player.jump(); inp_jump_edge = False
         # Advance player
         player.xw += player.speed * dt
         player.update_physics(dt)
-
-        # Bots AI
+        # Bots
         for ai in bot_ai:
             ai.step(dt)
-
         # Collisions
         handle_obstacles(player)
-
         # Finish checks
         everyone = [player] + bots
         for b in everyone:
@@ -664,7 +599,6 @@ def loop():
                 b.finish_time = time_elapsed
         if all(b.finished or b.xw >= TRACK_LENGTH for b in everyone):
             end_race()
-
         time_elapsed += dt
 
     # Camera smoothing
@@ -674,13 +608,12 @@ def loop():
     # Draw world
     draw_ground(world_x)
     draw_finish_start(world_x)
-    draw_obstacles_scroll(world_x)
+    draw_obstacles(world_x)
     player.draw_player(world_x)
-    for b in bots:
-        b.draw_bot(world_x)
+    for b in bots: b.draw_bot(world_x)
     draw_hud()
 
-    # Overlays for non-play states
+    # Overlays for other states
     if state == "HOME":
         draw_home()
     elif state == "PAUSE":
@@ -688,10 +621,7 @@ def loop():
     elif state == "END":
         draw_end()
 
+# Start loop and controls
 timer.set_interval(loop, int(FRAME_DT*1000))
-
-# Build controls (visible on touch; faint on desktop)
 build_controls()
-
-# Start at Home
 to_home()
