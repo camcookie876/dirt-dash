@@ -67,40 +67,39 @@
   <!-- SVG canvas -->
   <svg id="game"></svg>
 
-  <!-- Brython runtime -->
+  <!-- Brython flag -->
   <script>
-    window.camcookie_ready = false; // Flag set by game.py
+    window.camcookie_ready = false;
   </script>
+
+  <!-- Brython runtime (load first, no async) -->
   <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython_stdlib.min.js"></script>
 
-  <!-- Brython startup and splash logic -->
-  <script>
-    window.addEventListener("load", () => {
-      if (typeof brython === "function") {
-        brython();
-        const splash = document.getElementById("splash");
-        const startBtn = document.getElementById("start-btn");
-
-        const checkReady = setInterval(() => {
-          if (window.camcookie_ready === true) {
-            clearInterval(checkReady);
-            startBtn.textContent = "Start";
-            startBtn.disabled = false;
-            startBtn.classList.add("enabled");
-            startBtn.addEventListener("click", () => {
-              splash.style.opacity = "0";
-              setTimeout(() => splash.remove(), 600);
-            });
-          }
-        }, 100);
-      } else {
-        document.body.innerHTML = "<h1 style='color:white;text-align:center;margin-top:40vh;'>Brython failed to load.</h1>";
-      }
-    });
-  </script>
-
   <!-- Load your game code -->
   <script type="text/python" src="https://camcookie876.github.io/dirt-dash/game.py"></script>
+
+  <!-- Splash logic AFTER Brython is guaranteed to be loaded -->
+  <script>
+    const splash = document.getElementById("splash");
+    const startBtn = document.getElementById("start-btn");
+
+    window.addEventListener("load", () => {
+      brython(); // Safe to call now
+
+      const checkReady = setInterval(() => {
+        if (window.camcookie_ready === true) {
+          clearInterval(checkReady);
+          startBtn.textContent = "Start";
+          startBtn.disabled = false;
+          startBtn.classList.add("enabled");
+          startBtn.addEventListener("click", () => {
+            splash.style.opacity = "0";
+            setTimeout(() => splash.remove(), 600);
+          });
+        }
+      }, 100);
+    });
+  </script>
 </body>
 </html>
