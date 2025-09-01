@@ -68,31 +68,35 @@
   <svg id="game"></svg>
 
   <!-- Brython runtime -->
+  <script>
+    window.camcookie_ready = false; // Flag set by game.py
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython_stdlib.min.js"></script>
 
   <!-- Brython startup and splash logic -->
   <script>
-    const splash = document.getElementById("splash");
-    const startBtn = document.getElementById("start-btn");
-
-    // Wait for Brython to load
     window.addEventListener("load", () => {
-      brython();
-      // Poll for Brython readiness
-      const checkReady = setInterval(() => {
-        if (window.__BRYTHON__ && document.querySelector("svg#game")) {
-          clearInterval(checkReady);
-          startBtn.textContent = "Start";
-          startBtn.disabled = false;
-          startBtn.classList.add("enabled");
-          startBtn.style.cursor = "pointer";
-          startBtn.addEventListener("click", () => {
-            splash.style.opacity = "0";
-            setTimeout(() => splash.remove(), 600);
-          });
-        }
-      }, 100);
+      if (typeof brython === "function") {
+        brython();
+        const splash = document.getElementById("splash");
+        const startBtn = document.getElementById("start-btn");
+
+        const checkReady = setInterval(() => {
+          if (window.camcookie_ready === true) {
+            clearInterval(checkReady);
+            startBtn.textContent = "Start";
+            startBtn.disabled = false;
+            startBtn.classList.add("enabled");
+            startBtn.addEventListener("click", () => {
+              splash.style.opacity = "0";
+              setTimeout(() => splash.remove(), 600);
+            });
+          }
+        }, 100);
+      } else {
+        document.body.innerHTML = "<h1 style='color:white;text-align:center;margin-top:40vh;'>Brython failed to load.</h1>";
+      }
     });
   </script>
 
