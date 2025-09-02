@@ -44,19 +44,17 @@
 
   <script src="https://camcookie876.github.io/dirt-dash/game.js"></script>
   <script>
-    // Enable Start button once JS initializes
-    window.addEventListener('camcookie-ready', () => {
-      const btn = document.getElementById('start-btn');
-      btn.textContent = 'Start';
-      btn.disabled = false;
-      btn.classList.add('enabled');
-      btn.addEventListener('click', () => {
-        document.getElementById('splash').style.opacity = '0';
-        setTimeout(() => document.getElementById('splash').remove(), 600);
-        // Tell the game to show Home screen (name input) or start countdown
-        window.camcookie.startFromSplash();
-      }, { once:true });
-    });
+window.addEventListener('camcookie-ready', () => {
+  const btn = document.getElementById('start-btn');
+  btn.textContent = 'Start';
+  btn.disabled = false;
+  btn.classList.add('enabled');
+  btn.addEventListener('click', () => {
+    document.getElementById('splash').style.opacity = '0';
+    setTimeout(() => document.getElementById('splash').remove(), 600);
+    window.camcookie.startFromSplash();
+  }, { once: true });
+});
   </script>
 </body>
 </html>
