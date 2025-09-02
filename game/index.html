@@ -3,106 +3,59 @@
 <head>
   <meta charset="utf-8">
   <title>Camcookie Dirt Dash</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0e">
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #0b0b0e;
-      height: 100%;
-      overflow: hidden;
-      font-family: system-ui, sans-serif;
-    }
+    html, body { margin:0; padding:0; height:100%; background:#0b0b0e; overflow:hidden; font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
     #splash {
-      position: fixed;
-      inset: 0;
-      background: #0b0b0e;
-      color: #e6f2ff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      z-index: 999;
-      transition: opacity 0.6s ease;
+      position:fixed; inset:0; background:#0b0b0e; color:#e6f2ff;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+      z-index:9999; transition:opacity .6s ease;
     }
-    #splash h1 {
-      font-size: 64px;
-      margin-bottom: 20px;
-    }
-    #splash p {
-      font-size: 24px;
-      margin-bottom: 40px;
-      color: #a6c7ff;
-    }
+    #splash h1 { font-size:64px; margin:0 0 16px; }
+    #splash p { font-size:20px; color:#a6c7ff; margin:0 0 32px; }
     #start-btn {
-      font-size: 28px;
-      padding: 16px 40px;
-      border-radius: 12px;
-      border: 2px solid #2a3a58;
-      background: #24334a;
-      color: #e6f2ff;
-      cursor: not-allowed;
-      opacity: 0.5;
+      font-size:24px; padding:14px 32px; border-radius:12px; border:2px solid #2a3a58; background:#24334a; color:#e6f2ff;
+      cursor:not-allowed; opacity:.5;
     }
-    #start-btn.enabled {
-      cursor: pointer;
-      opacity: 1;
+    #start-btn.enabled { cursor:pointer; opacity:1; }
+    #root { position:fixed; inset:0; }
+    #game { width:100%; height:100%; display:block; }
+    /* Home UI created by JS; keep a slot for layout if needed */
+    #home-ui { position:absolute; inset:0; display:none; align-items:center; justify-content:center; gap:16px; flex-direction:column; z-index:5; }
+    #home-ui input, #home-ui button {
+      width:min(80vw, 560px); height:64px; font-size:24px; border-radius:12px; border:2px solid #2a3a58; color:#e6f2ff;
     }
-    #game {
-      width: 100vw;
-      height: 100vh;
-      display: block;
-    }
+    #home-ui input { background:#0f1724; padding:0 16px; }
+    #home-ui button { background:#24334a; }
   </style>
 </head>
 <body>
-  <!-- Splash screen -->
   <div id="splash">
     <h1>Camcookie Dirt Dash</h1>
     <p>Made with Microsoft Copilot — a future Camcookie game for Raspberry Pi</p>
-    <button id="start-btn" disabled>Loading...</button>
+    <button id="start-btn" disabled>Loading…</button>
   </div>
 
-  <!-- SVG canvas -->
-  <svg id="game"></svg>
+  <div id="root">
+    <svg id="game" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"></svg>
+    <div id="home-ui"></div>
+  </div>
 
-  <!-- Brython flag -->
+  <script src="game.js"></script>
   <script>
-    window.camcookie_ready = false;
-  </script>
-
-  <!-- Brython runtime (must come BEFORE calling brython()) -->
-  <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/brython@3.11.4/brython_stdlib.min.js"></script>
-
-  <!-- Load your game code -->
-  <script type="text/python" src="https://camcookie876.github.io/dirt-dash/game.py"></script>
-
-  <!-- Splash logic AFTER Brython is guaranteed to be loaded -->
-  <script>
-    const splash = document.getElementById("splash");
-    const startBtn = document.getElementById("start-btn");
-
-    window.addEventListener("load", () => {
-      if (typeof brython === "function") {
-        brython(); // Safe to call now
-
-        const checkReady = setInterval(() => {
-          if (window.camcookie_ready === true) {
-            clearInterval(checkReady);
-            startBtn.textContent = "Start";
-            startBtn.disabled = false;
-            startBtn.classList.add("enabled");
-            startBtn.addEventListener("click", () => {
-              splash.style.opacity = "0";
-              setTimeout(() => splash.remove(), 600);
-            });
-          }
-        }, 100);
-      } else {
-        document.body.innerHTML = "<h1 style='color:white;text-align:center;margin-top:40vh;'>Brython failed to load.</h1>";
-      }
+    // Enable Start button once JS initializes
+    window.addEventListener('camcookie-ready', () => {
+      const btn = document.getElementById('start-btn');
+      btn.textContent = 'Start';
+      btn.disabled = false;
+      btn.classList.add('enabled');
+      btn.addEventListener('click', () => {
+        document.getElementById('splash').style.opacity = '0';
+        setTimeout(() => document.getElementById('splash').remove(), 600);
+        // Tell the game to show Home screen (name input) or start countdown
+        window.camcookie.startFromSplash();
+      }, { once:true });
     });
   </script>
 </body>
